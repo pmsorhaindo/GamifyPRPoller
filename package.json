@@ -1,0 +1,28 @@
+{
+  "name": "GamifyPRPoller",
+  "version": "0.0.1",
+  "description": "Polls the github API for latest PR activity to be used with Brandwatch's Gamify PR's project.",
+  "main": "main.js",
+  "dependencies": {
+    "github": "git@github.com/mikedeboer/node-github.git#0.2.3",
+    "level": "^0.18.0",
+  },
+  "devDependencies": {},
+  "scripts": {
+    "test": "tests"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/pmsorhaindo/GamifyPRPoller.git"
+  },
+  "keywords": [
+    "polling",
+    "github"
+  ],
+  "author": "Brandwatch",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/pmsorhaindo/GamifyPRPoller/issues"
+  },
+  "homepage": "https://github.com/pmsorhaindo/GamifyPRPoller"
+}
