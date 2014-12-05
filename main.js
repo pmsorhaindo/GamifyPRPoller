@@ -8,11 +8,13 @@ var commentsdb = levelup('./comments');
 var options = {
     host: 'api.github.com',
     path: '/repos/BrandwatchLtd/frontend/pulls',
-    auth: 'pmsorhaindo:1e1eea4ac24f7e0cdc53afd22e715a8b0537c209',
+    auth: 'pmsorhaindo:c4b0c1bd041d369341a0fe8c6fd0cc9ad091908a',
     headers: {
         'User-Agent': 'BrandwatchLtd-PR-Gamification'
     }
 };
+
+var tempCommentsArray = [];
 
 
 
@@ -71,22 +73,20 @@ function processCommentsReponse(strJSON,header) {
     var responseObj = JSON.parse(strJSON);
     
     responseObj.forEach(function(commentObj){
-        var savedObj = {
+        
+        tempCommentsArray.push({
             username : commentObj.user.login,
             email : '', // 
             comment : commentObj.body,
             time : commentObj.created_at,
             repo : extractRepoFromPRURL(commentObj.url)
-        };
-        
-        commentsdb.put(commentObj.id, savedObj, function (err) {
-            if (err) return console.log('Ooops!', err); // some kind of I/O error
         });
     });
 }
 
 function postNewComments()
 {
+
     var postOptions = {
       host: 'http://git/',
       path: '/statistics',
@@ -106,13 +106,9 @@ function postNewComments()
     };
 
     var req = http.request(postOptions, postCallback);
-    req.write();
+    req.write(JSON.stringify(tempCommentsArray));
     req.end();
 }
-
-
-
-
 
 
 function stripHost(strURL){
