@@ -1,13 +1,16 @@
+var http = require('http');
 var https = require('https');
+var async = require('async');
 var levelup = require('level');
+//var schedule = require('node-schedule');
 
 
 var commentsdb = levelup('./comments');
-
+var repoPullRequestsPath = '/repos/BrandwatchLtd/frontend/pulls';
 
 var options = {
     host: 'api.github.com',
-    path: '/repos/BrandwatchLtd/frontend/pulls',
+    path: '',
     auth: 'pmsorhaindo:c4b0c1bd041d369341a0fe8c6fd0cc9ad091908a',
     headers: {
         'User-Agent': 'BrandwatchLtd-PR-Gamification'
@@ -15,9 +18,6 @@ var options = {
 };
 
 var tempCommentsArray = [];
-
-
-
 var responseObj;
 
 callbackPR = function(response) {
@@ -33,7 +33,7 @@ callbackPR = function(response) {
     });
 };
 
-callbackComments = function(response) {
+callbackComments = function(response,callback) {
     var str = '';
     var header = JSON.stringify(response.headers);
 
@@ -43,31 +43,46 @@ callbackComments = function(response) {
 
     response.on('end', function() {
         processCommentsReponse(str,header);
+        callback();
     });
 };
-
-https.request(options, callbackPR).end();
 
 function processPRResponse(strJSON,header) {
     var responseObj = JSON.parse(strJSON);
 
-  
-    responseObj.forEach(function(prObject){
+    async.series([
+        function(callback){
+            processPRComments(responseObj,callback);
+        },
+        function(callback){
+            processIssuesComments(responseObj,callback);
+        }],
+        function(err){
+            if(err) {
+                throw err;
+            }
+            cacheNewComments();
+        });
+}
+
+function processPRComments(responseObj,PRsCompleted) {
+    console.log('grabbing PR comments...');
+    async.each(responseObj, function(prObject,callback) {
         options.path = stripHost(prObject.review_comments_url);
-        https.request(options, callbackComments).end();
-    });
-
-    processIssues(responseObj);
+        https.request(options, function(resp){
+            callbackComments(resp,callback);
+        }).end();
+        }, PRsCompleted);
 }
 
-function processIssues(responseObj){
-    responseObj.forEach(function(prObject){
+function processIssuesComments(responseObj,issuesCompleted) {
+    console.log('grabbing PR issue comments...');
+        async.each(responseObj, function(prObject,callback) {
         options.path = stripHost(prObject.comments_url);
-        https.request(options, callbackComments).end();
-    });
-
-    postNewComments();
-}
+        https.request(options, function(resp){
+            callbackComments(resp,callback);
+            }).end();
+        }, issuesCompleted);}
 
 function processCommentsReponse(strJSON,header) {
     var responseObj = JSON.parse(strJSON);
@@ -75,6 +90,7 @@ function processCommentsReponse(strJSON,header) {
     responseObj.forEach(function(commentObj){
         
         tempCommentsArray.push({
+            id : commentObj.id,
             username : commentObj.user.login,
             email : '', // 
             comment : commentObj.body,
@@ -84,30 +100,29 @@ function processCommentsReponse(strJSON,header) {
     });
 }
 
-function postNewComments()
-{
+function cacheNewComments() {
+    console.log('Total comments polled: ' + tempCommentsArray.length);
+    console.log('Writing to commentsdb...');
 
-    var postOptions = {
-      host: 'http://git/',
-      path: '/statistics',
-      port: '8080',
-      method: 'POST'
-    };
+    var ops = tempCommentsArray.map(function (comment){
+        return {
+            type: 'put',
+            key: comment.id,
+            value: comment,
+            valueEncoding : 'json'
+        };
+    });
 
-    postCallback = function(response) {
-      var str = '';
-      response.on('data', function (chunk) {
-        str += chunk;
-      });
+    responseObj = null;
+    tempCommentsArray = [];
+    
+    commentsdb.batch(ops, function (err) {
+      if (err) return console.log('Ooops!', err);
+      console.log('Great success dear leader!');
+    });
 
-      response.on('end', function () {
-        console.log(str);
-      });
-    };
-
-    var req = http.request(postOptions, postCallback);
-    req.write(JSON.stringify(tempCommentsArray));
-    req.end();
+    readDB();
+    //TODO END OF EXECITION
 }
 
 
@@ -119,17 +134,29 @@ function extractRepoFromPRURL(strURL){
     return strURL.split('/')[5];
 }
 
-
-commentsdb.createReadStream()
-    .on('data', function (data) {
-        console.log(data.key, '=', data.value);
-    })
+function readDB(){
+    var count = 0;
+    commentsdb.createReadStream({valueEncoding : 'json'})
+        .on('data', function (data) {
+            //console.log(data.key, '=', data.value.comment);
+            count+=1;
+            })
         .on('error', function (err) {
-    console.log('Oh my!', err);
-    })
+            console.log('Oh my!', err);
+            })
         .on('close', function () {
-    console.log('Stream closed');
-    })
-    .on('end', function () {
-        console.log('Stream closed');
-    });
+            console.log (count + ' comment(s) in the datastore');
+            console.log('Stream closed');
+            })
+        .on('end', function () {
+            console.log('Stream ended');
+        });
+}
+
+function main() {
+    options.path = repoPullRequestsPath;
+    https.request(options, callbackPR).end();
+}
+
+setInterval(main,20000);
+
