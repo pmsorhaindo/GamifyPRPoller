@@ -2,16 +2,19 @@ var http = require('http');
 var https = require('https');
 var async = require('async');
 var levelup = require('level');
+var mongojs = require('mongojs');
 //var schedule = require('node-schedule');
 
+var apiKey = '';
+var repoName = 'repo';
 
 var commentsdb = levelup('./comments');
-var repoPullRequestsPath = '/repos/BrandwatchLtd/frontend/pulls';
+var repoPullRequestsPath = '/repos/' + repoName + '/frontend/pulls';
 
 var options = {
     host: 'api.github.com',
     path: '',
-    auth: 'pmsorhaindo:c4b0c1bd041d369341a0fe8c6fd0cc9ad091908a',
+    auth: 'pmsorhaindo:'+apiKey,
     headers: {
         'User-Agent': 'BrandwatchLtd-PR-Gamification'
     }
